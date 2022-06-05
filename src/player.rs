@@ -2,6 +2,7 @@ use crate::actions::Actions;
 use crate::loading::TextureAssets;
 use crate::GameState;
 use bevy::prelude::*;
+use bevy::render::camera::Camera2d;
 
 pub struct PlayerPlugin;
 
@@ -17,7 +18,29 @@ impl Plugin for PlayerPlugin {
                 .with_system(spawn_player)
                 .with_system(spawn_camera),
         )
-        .add_system_set(SystemSet::on_update(GameState::Playing).with_system(move_player));
+        .add_system_set(SystemSet::on_update(GameState::Playing)
+            .with_system(move_player)
+            .with_system(spawn_camera_follow));
+    }
+}
+
+
+fn spawn_camera_follow(
+    time: Res<Time>,
+    actions: Res<Actions>,
+    mut camera_query: Query<&mut Transform, (With<Camera2d>)>,
+) {
+    for mut transform in camera_query.iter_mut() {
+
+
+        if let Some(mouse) = actions.mouse_right_drag {
+            if mouse.is_nan() {
+                return;
+            }
+            transform.translation = transform
+                .translation
+                .lerp(mouse.extend(0.0), time.delta_seconds() * 1.2);
+        }
     }
 }
 

@@ -1,5 +1,6 @@
 use crate::GameState;
 use bevy::prelude::*;
+use bevy::render::camera::{Camera2d, RenderTarget};
 
 pub struct ActionsPlugin;
 
@@ -8,7 +9,9 @@ pub struct ActionsPlugin;
 impl Plugin for ActionsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Actions>().add_system_set(
-            SystemSet::on_update(GameState::Playing).with_system(set_movement_actions),
+            SystemSet::on_update(GameState::Playing)
+                .with_system(set_movement_actions)
+                .with_system(handle_mouse_clicks),
         );
     }
 }
@@ -16,6 +19,42 @@ impl Plugin for ActionsPlugin {
 #[derive(Default)]
 pub struct Actions {
     pub player_movement: Option<Vec2>,
+    pub mouse_right_drag: Option<Vec2>,
+}
+
+
+pub fn handle_mouse_clicks(
+    mouse_input: Res<Input<MouseButton>>,
+    windows: Res<Windows>,
+    mut actions: ResMut<Actions>,
+    q_camera: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
+) {
+
+    let (camera, camera_transform) = q_camera.single();
+
+    let win = if let RenderTarget::Window(id) = camera.target {
+        windows.get(id).unwrap()
+    } else {
+        windows.get_primary().unwrap()
+    };
+
+    if mouse_input.pressed(MouseButton::Right)|| mouse_input.pressed(MouseButton::Left) {
+        if let Some(screen_pos) = win.cursor_position() {
+            let window_size = Vec2::new(win.width() as f32, win.height() as f32);
+
+            let ndc = (screen_pos / window_size) * 2.0 - Vec2::ONE;
+
+            let ndc_to_world =
+                camera_transform.compute_matrix() * camera.projection_matrix.inverse();
+
+            let world_pos = ndc_to_world.project_point3(ndc.extend(-1.0));
+
+            actions.mouse_right_drag = Some(world_pos.truncate());
+        }
+        return;
+    } else {
+        actions.mouse_right_drag = None;
+    }
 }
 
 fn set_movement_actions(mut actions: ResMut<Actions>, keyboard_input: Res<Input<KeyCode>>) {
